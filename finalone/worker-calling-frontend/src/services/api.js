@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5050';
+const API_URL = import.meta.VITE_API_URL || 'http://localhost:5050';
 
 // Create axios instance
 const api = axios.create({
