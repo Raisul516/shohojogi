@@ -1,25 +1,23 @@
-const { Pool } = require('pg');
-require('dotenv').config();
+const { Pool } = require("pg");
 
-// Create PostgreSQL connection pool
+// Create PostgreSQL connection pool (Neon + Render)
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // How long a client can remain idle before being closed
-  connectionTimeoutMillis: 2000, // How long to wait for a connection
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 
 // Test database connection
-pool.on('connect', () => {
-  console.log('✓ Connected to PostgreSQL database');
+pool.on("connect", () => {
+  console.log("✓ Connected to PostgreSQL database");
 });
 
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
+pool.on("error", (err) => {
+  console.error("Unexpected error on idle client", err);
   process.exit(-1);
 });
 
@@ -29,10 +27,10 @@ const query = async (text, params) => {
   try {
     const res = await pool.query(text, params);
     const duration = Date.now() - start;
-    console.log('Executed query', { text, duration, rows: res.rowCount });
+    console.log("Executed query", { text, duration, rows: res.rowCount });
     return res;
   } catch (error) {
-    console.error('Database query error:', error);
+    console.error("Database query error:", error);
     throw error;
   }
 };
@@ -45,7 +43,7 @@ const getClient = async () => {
 
   // Set a timeout of 5 seconds for transactions
   const timeout = setTimeout(() => {
-    console.error('A client has been checked out for more than 5 seconds!');
+    console.error("A client has been checked out for more than 5 seconds!");
   }, 5000);
 
   // Monkey patch the query method to keep track of the last query executed
@@ -78,7 +76,9 @@ const ensureInstantCallTables = async () => {
     `);
 
     if (!bookingImagesCheck.rows[0].exists) {
-      console.log('⚠ Creating booking_images table for instant call feature...');
+      console.log(
+        "⚠ Creating booking_images table for instant call feature..."
+      );
       await query(`
         CREATE TABLE booking_images (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -88,10 +88,12 @@ const ensureInstantCallTables = async () => {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      await query(`CREATE INDEX IF NOT EXISTS idx_booking_images_booking_id ON booking_images(booking_id)`);
-      console.log('✓ Successfully created booking_images table');
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_booking_images_booking_id ON booking_images(booking_id)`
+      );
+      console.log("✓ Successfully created booking_images table");
     } else {
-      console.log('✓ booking_images table already exists');
+      console.log("✓ booking_images table already exists");
     }
 
     // Check if worker_estimates table exists
@@ -104,7 +106,9 @@ const ensureInstantCallTables = async () => {
     `);
 
     if (!workerEstimatesCheck.rows[0].exists) {
-      console.log('⚠ Creating worker_estimates table for instant call feature...');
+      console.log(
+        "⚠ Creating worker_estimates table for instant call feature..."
+      );
       await query(`
         CREATE TABLE worker_estimates (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -118,16 +122,24 @@ const ensureInstantCallTables = async () => {
           UNIQUE(booking_id, worker_id)
         )
       `);
-      await query(`CREATE INDEX IF NOT EXISTS idx_worker_estimates_booking_id ON worker_estimates(booking_id)`);
-      await query(`CREATE INDEX IF NOT EXISTS idx_worker_estimates_worker_id ON worker_estimates(worker_id)`);
-      await query(`CREATE INDEX IF NOT EXISTS idx_worker_estimates_status ON worker_estimates(status)`);
-      console.log('✓ Successfully created worker_estimates table');
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_worker_estimates_booking_id ON worker_estimates(booking_id)`
+      );
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_worker_estimates_worker_id ON worker_estimates(worker_id)`
+      );
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_worker_estimates_status ON worker_estimates(status)`
+      );
+      console.log("✓ Successfully created worker_estimates table");
     } else {
-      console.log('✓ worker_estimates table already exists');
+      console.log("✓ worker_estimates table already exists");
     }
   } catch (error) {
-    console.error('Error creating instant call tables:', error);
-    console.log('⚠ Warning: Could not create booking_images or worker_estimates tables. Please run migration manually.');
+    console.error("Error creating instant call tables:", error);
+    console.log(
+      "⚠ Warning: Could not create booking_images or worker_estimates tables. Please run migration manually."
+    );
   }
 };
 
@@ -144,8 +156,10 @@ const ensureNIDVerificationTables = async () => {
     `);
 
     if (!nidVerificationsCheck.rows[0].exists) {
-      console.log('⚠ Creating nid_verifications table for NID verification feature...');
-      
+      console.log(
+        "⚠ Creating nid_verifications table for NID verification feature..."
+      );
+
       // Create nid_verifications table
       await query(`
         CREATE TABLE nid_verifications (
@@ -179,18 +193,28 @@ const ensureNIDVerificationTables = async () => {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      
+
       // Create indexes
-      await query(`CREATE INDEX IF NOT EXISTS idx_nid_verifications_user_id ON nid_verifications(user_id)`);
-      await query(`CREATE INDEX IF NOT EXISTS idx_nid_verifications_status ON nid_verifications(verification_status)`);
-      await query(`CREATE INDEX IF NOT EXISTS idx_nid_verifications_submitted_at ON nid_verifications(submitted_at)`);
-      await query(`CREATE INDEX IF NOT EXISTS idx_nid_verifications_nid_number ON nid_verifications((extracted_data->>'nid_number'))`);
-      await query(`CREATE INDEX IF NOT EXISTS idx_nid_verifications_face_match ON nid_verifications(face_match_passed) WHERE face_match_passed IS NOT NULL`);
-      
-      console.log('✓ Successfully created nid_verifications table');
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_nid_verifications_user_id ON nid_verifications(user_id)`
+      );
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_nid_verifications_status ON nid_verifications(verification_status)`
+      );
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_nid_verifications_submitted_at ON nid_verifications(submitted_at)`
+      );
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_nid_verifications_nid_number ON nid_verifications((extracted_data->>'nid_number'))`
+      );
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_nid_verifications_face_match ON nid_verifications(face_match_passed) WHERE face_match_passed IS NOT NULL`
+      );
+
+      console.log("✓ Successfully created nid_verifications table");
     } else {
-      console.log('✓ nid_verifications table already exists');
-      
+      console.log("✓ nid_verifications table already exists");
+
       // Check and add face verification columns if they don't exist
       const faceVerificationColumns = await query(`
         SELECT column_name 
@@ -198,19 +222,33 @@ const ensureNIDVerificationTables = async () => {
         WHERE table_name = 'nid_verifications' 
         AND column_name IN ('selfie_image_url', 'selfie_descriptor', 'face_verification_results', 'face_match_passed')
       `);
-      
-      const existingColumns = faceVerificationColumns.rows.map(row => row.column_name);
-      
-      if (!existingColumns.includes('selfie_image_url')) {
-        console.log('⚠ Adding face verification columns to nid_verifications table...');
-        await query(`ALTER TABLE nid_verifications ADD COLUMN IF NOT EXISTS selfie_image_url TEXT`);
-        await query(`ALTER TABLE nid_verifications ADD COLUMN IF NOT EXISTS selfie_descriptor JSONB`);
-        await query(`ALTER TABLE nid_verifications ADD COLUMN IF NOT EXISTS face_verification_results JSONB`);
-        await query(`ALTER TABLE nid_verifications ADD COLUMN IF NOT EXISTS face_match_passed BOOLEAN DEFAULT FALSE`);
-        await query(`CREATE INDEX IF NOT EXISTS idx_nid_verifications_face_match ON nid_verifications(face_match_passed) WHERE face_match_passed IS NOT NULL`);
-        console.log('✓ Successfully added face verification columns');
+
+      const existingColumns = faceVerificationColumns.rows.map(
+        (row) => row.column_name
+      );
+
+      if (!existingColumns.includes("selfie_image_url")) {
+        console.log(
+          "⚠ Adding face verification columns to nid_verifications table..."
+        );
+        await query(
+          `ALTER TABLE nid_verifications ADD COLUMN IF NOT EXISTS selfie_image_url TEXT`
+        );
+        await query(
+          `ALTER TABLE nid_verifications ADD COLUMN IF NOT EXISTS selfie_descriptor JSONB`
+        );
+        await query(
+          `ALTER TABLE nid_verifications ADD COLUMN IF NOT EXISTS face_verification_results JSONB`
+        );
+        await query(
+          `ALTER TABLE nid_verifications ADD COLUMN IF NOT EXISTS face_match_passed BOOLEAN DEFAULT FALSE`
+        );
+        await query(
+          `CREATE INDEX IF NOT EXISTS idx_nid_verifications_face_match ON nid_verifications(face_match_passed) WHERE face_match_passed IS NOT NULL`
+        );
+        console.log("✓ Successfully added face verification columns");
       }
-      
+
       // Check and add auto_approval_reason if it doesn't exist
       const autoApprovalCheck = await query(`
         SELECT column_name 
@@ -218,11 +256,15 @@ const ensureNIDVerificationTables = async () => {
         WHERE table_name = 'nid_verifications' 
         AND column_name = 'auto_approval_reason'
       `);
-      
+
       if (autoApprovalCheck.rows.length === 0) {
-        console.log('⚠ Adding auto_approval_reason column to nid_verifications table...');
-        await query(`ALTER TABLE nid_verifications ADD COLUMN IF NOT EXISTS auto_approval_reason TEXT`);
-        console.log('✓ Successfully added auto_approval_reason column');
+        console.log(
+          "⚠ Adding auto_approval_reason column to nid_verifications table..."
+        );
+        await query(
+          `ALTER TABLE nid_verifications ADD COLUMN IF NOT EXISTS auto_approval_reason TEXT`
+        );
+        console.log("✓ Successfully added auto_approval_reason column");
       }
     }
 
@@ -236,7 +278,7 @@ const ensureNIDVerificationTables = async () => {
     `);
 
     if (!logsCheck.rows[0].exists) {
-      console.log('⚠ Creating nid_verification_logs table...');
+      console.log("⚠ Creating nid_verification_logs table...");
       await query(`
         CREATE TABLE nid_verification_logs (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -248,11 +290,15 @@ const ensureNIDVerificationTables = async () => {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      await query(`CREATE INDEX IF NOT EXISTS idx_nid_verification_logs_verification_id ON nid_verification_logs(verification_id)`);
-      await query(`CREATE INDEX IF NOT EXISTS idx_nid_verification_logs_user_id ON nid_verification_logs(user_id)`);
-      console.log('✓ Successfully created nid_verification_logs table');
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_nid_verification_logs_verification_id ON nid_verification_logs(verification_id)`
+      );
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_nid_verification_logs_user_id ON nid_verification_logs(user_id)`
+      );
+      console.log("✓ Successfully created nid_verification_logs table");
     } else {
-      console.log('✓ nid_verification_logs table already exists');
+      console.log("✓ nid_verification_logs table already exists");
     }
 
     // Check and add nid_verification_status column to users table if it doesn't exist
@@ -264,18 +310,20 @@ const ensureNIDVerificationTables = async () => {
     `);
 
     if (userStatusCheck.rows.length === 0) {
-      console.log('⚠ Adding nid_verification_status column to users table...');
+      console.log("⚠ Adding nid_verification_status column to users table...");
       await query(`
         ALTER TABLE users 
         ADD COLUMN nid_verification_status VARCHAR(20) DEFAULT 'not_submitted' 
         CHECK (nid_verification_status IN ('not_submitted', 'pending', 'approved', 'rejected'))
       `);
-      console.log('✓ Successfully added nid_verification_status column');
+      console.log("✓ Successfully added nid_verification_status column");
     } else {
       // Check if column has a default value, if not, add it
       const columnInfo = userStatusCheck.rows[0];
-      if (!columnInfo.column_default && columnInfo.is_nullable === 'NO') {
-        console.log('⚠ nid_verification_status column exists but has no default. Adding default value...');
+      if (!columnInfo.column_default && columnInfo.is_nullable === "NO") {
+        console.log(
+          "⚠ nid_verification_status column exists but has no default. Adding default value..."
+        );
         try {
           await query(`
             ALTER TABLE users 
@@ -287,9 +335,14 @@ const ensureNIDVerificationTables = async () => {
             SET nid_verification_status = 'not_submitted' 
             WHERE nid_verification_status IS NULL
           `);
-          console.log('✓ Successfully added default value to nid_verification_status column');
+          console.log(
+            "✓ Successfully added default value to nid_verification_status column"
+          );
         } catch (error) {
-          console.error('Error setting default for nid_verification_status:', error);
+          console.error(
+            "Error setting default for nid_verification_status:",
+            error
+          );
         }
       }
     }
@@ -303,9 +356,9 @@ const ensureNIDVerificationTables = async () => {
     `);
 
     if (nidNumberCheck.rows.length === 0) {
-      console.log('⚠ Adding nid_number_encrypted column to users table...');
+      console.log("⚠ Adding nid_number_encrypted column to users table...");
       await query(`ALTER TABLE users ADD COLUMN nid_number_encrypted TEXT`);
-      console.log('✓ Successfully added nid_number_encrypted column');
+      console.log("✓ Successfully added nid_number_encrypted column");
     }
 
     // Check and add loyalty_tier column to users table if it doesn't exist
@@ -317,7 +370,7 @@ const ensureNIDVerificationTables = async () => {
     `);
 
     if (loyaltyTierCheck.rows.length === 0) {
-      console.log('⚠ Adding loyalty_tier column to users table...');
+      console.log("⚠ Adding loyalty_tier column to users table...");
       await query(`
         ALTER TABLE users 
         ADD COLUMN loyalty_tier VARCHAR(20) DEFAULT 'Bronze' 
@@ -329,7 +382,7 @@ const ensureNIDVerificationTables = async () => {
         SET loyalty_tier = 'Bronze' 
         WHERE loyalty_tier IS NULL
       `);
-      console.log('✓ Successfully added loyalty_tier column');
+      console.log("✓ Successfully added loyalty_tier column");
     } else {
       // Ensure existing users have a tier
       await query(`
@@ -377,10 +430,11 @@ const ensureNIDVerificationTables = async () => {
         FOR EACH ROW
         EXECUTE FUNCTION update_user_verification_status()
     `);
-
   } catch (error) {
-    console.error('Error creating NID verification tables:', error);
-    console.log('⚠ Warning: Could not create nid_verifications or nid_verification_logs tables. Please run migration_nid_verification.sql manually.');
+    console.error("Error creating NID verification tables:", error);
+    console.log(
+      "⚠ Warning: Could not create nid_verifications or nid_verification_logs tables. Please run migration_nid_verification.sql manually."
+    );
   }
 };
 
@@ -409,14 +463,22 @@ const ensureBookingsConstraints = async () => {
         AND table_name = 'bookings' 
         AND column_name = 'worker_id'
       `);
-      
-      if (workerIdCheck.rows.length > 0 && workerIdCheck.rows[0].is_nullable === 'NO') {
-        console.log('⚠ Making worker_id nullable for call_worker bookings...');
-        await query(`ALTER TABLE bookings ALTER COLUMN worker_id DROP NOT NULL`);
-        console.log('✓ Successfully made worker_id nullable');
+
+      if (
+        workerIdCheck.rows.length > 0 &&
+        workerIdCheck.rows[0].is_nullable === "NO"
+      ) {
+        console.log("⚠ Making worker_id nullable for call_worker bookings...");
+        await query(
+          `ALTER TABLE bookings ALTER COLUMN worker_id DROP NOT NULL`
+        );
+        console.log("✓ Successfully made worker_id nullable");
       }
     } catch (error) {
-      console.log('⚠ Could not update worker_id column (may already be nullable):', error.message);
+      console.log(
+        "⚠ Could not update worker_id column (may already be nullable):",
+        error.message
+      );
     }
 
     // 1. Update booking_type constraint to include 'call_worker'
@@ -430,25 +492,33 @@ const ensureBookingsConstraints = async () => {
     if (bookingTypeCheck.rows.length > 0) {
       const checkClause = bookingTypeCheck.rows[0].check_clause;
       if (!checkClause.includes("'call_worker'")) {
-        console.log('⚠ Updating bookings booking_type constraint to include call_worker...');
-        await query(`ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_booking_type_check`);
+        console.log(
+          "⚠ Updating bookings booking_type constraint to include call_worker..."
+        );
+        await query(
+          `ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_booking_type_check`
+        );
         await query(`
           ALTER TABLE bookings 
           ADD CONSTRAINT bookings_booking_type_check 
           CHECK (booking_type IN ('instant', 'scheduled', 'call_worker'))
         `);
-        console.log('✓ Successfully updated bookings booking_type constraint');
+        console.log("✓ Successfully updated bookings booking_type constraint");
       }
     } else {
       // Constraint might not exist or have different name, try to add it
-      console.log('⚠ Adding bookings booking_type constraint with call_worker...');
-      await query(`ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_booking_type_check`);
+      console.log(
+        "⚠ Adding bookings booking_type constraint with call_worker..."
+      );
+      await query(
+        `ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_booking_type_check`
+      );
       await query(`
         ALTER TABLE bookings 
         ADD CONSTRAINT bookings_booking_type_check 
         CHECK (booking_type IN ('instant', 'scheduled', 'call_worker'))
       `);
-      console.log('✓ Successfully added bookings booking_type constraint');
+      console.log("✓ Successfully added bookings booking_type constraint");
     }
 
     // 2. Update status constraint to include 'pending_estimation'
@@ -467,47 +537,68 @@ const ensureBookingsConstraints = async () => {
 
     let statusConstraintExists = false;
     let statusConstraintName = null;
-    
+
     if (statusConstraintsCheck.rows.length > 0) {
       statusConstraintExists = true;
       statusConstraintName = statusConstraintsCheck.rows[0].constraint_name;
       const checkClause = statusConstraintsCheck.rows[0].check_clause;
-      
+
       // Check if 'pending_estimation' is already in the constraint
-      if (checkClause.includes("'pending_estimation'") || checkClause.includes('pending_estimation')) {
-        console.log('✓ Bookings status constraint already includes pending_estimation');
+      if (
+        checkClause.includes("'pending_estimation'") ||
+        checkClause.includes("pending_estimation")
+      ) {
+        console.log(
+          "✓ Bookings status constraint already includes pending_estimation"
+        );
       } else {
-        console.log('⚠ Updating bookings status constraint to include pending_estimation...');
+        console.log(
+          "⚠ Updating bookings status constraint to include pending_estimation..."
+        );
         // Drop the existing constraint (whatever its name is)
-        await query(`ALTER TABLE bookings DROP CONSTRAINT IF EXISTS ${statusConstraintName}`);
+        await query(
+          `ALTER TABLE bookings DROP CONSTRAINT IF EXISTS ${statusConstraintName}`
+        );
         await query(`
           ALTER TABLE bookings 
           ADD CONSTRAINT bookings_status_check 
           CHECK (status IN ('pending', 'pending_estimation', 'accepted', 'in_progress', 'completed', 'cancelled', 'rejected'))
         `);
-        console.log('✓ Successfully updated bookings status constraint to include pending_estimation');
+        console.log(
+          "✓ Successfully updated bookings status constraint to include pending_estimation"
+        );
       }
     } else {
       // Try to drop any constraint that might exist with a different name pattern
-      console.log('⚠ No status constraint found with standard name, checking for any status-related constraints...');
-      
+      console.log(
+        "⚠ No status constraint found with standard name, checking for any status-related constraints..."
+      );
+
       // Drop any existing constraint and add new one
-      await query(`ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check`);
-      await query(`ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_check`);
-      
+      await query(
+        `ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check`
+      );
+      await query(
+        `ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_check`
+      );
+
       // Add the new constraint
-      console.log('⚠ Adding bookings status constraint with pending_estimation...');
+      console.log(
+        "⚠ Adding bookings status constraint with pending_estimation..."
+      );
       await query(`
         ALTER TABLE bookings 
         ADD CONSTRAINT bookings_status_check 
         CHECK (status IN ('pending', 'pending_estimation', 'accepted', 'in_progress', 'completed', 'cancelled', 'rejected'))
       `);
-      console.log('✓ Successfully added bookings status constraint');
+      console.log("✓ Successfully added bookings status constraint");
     }
   } catch (error) {
-    console.error('Error updating bookings constraints:', error);
+    console.error("Error updating bookings constraints:", error);
     // Don't throw, just log - the server can still start
-    console.log('⚠ Warning: Could not update bookings constraints. Please run migration manually.');
+    console.log(
+      "⚠ Warning: Could not update bookings constraints. Please run migration manually."
+    );
   }
 };
 
@@ -537,7 +628,7 @@ const ensureProfilePhotoColumn = async () => {
     `);
 
     if (columnCheck.rows.length === 0) {
-      console.log('⚠ profile_photo column not found in users table');
+      console.log("⚠ profile_photo column not found in users table");
       return;
     }
 
@@ -545,27 +636,35 @@ const ensureProfilePhotoColumn = async () => {
     const maxLength = columnCheck.rows[0].character_maximum_length;
 
     // If it's VARCHAR with a limit (like VARCHAR(500)), change it to TEXT
-    if (currentType === 'character varying' && maxLength !== null) {
-      console.log(`⚠ Migrating profile_photo column from VARCHAR(${maxLength}) to TEXT...`);
+    if (currentType === "character varying" && maxLength !== null) {
+      console.log(
+        `⚠ Migrating profile_photo column from VARCHAR(${maxLength}) to TEXT...`
+      );
       try {
         await query(`
           ALTER TABLE users 
           ALTER COLUMN profile_photo TYPE TEXT
         `);
-        console.log('✓ Successfully migrated profile_photo column to TEXT');
+        console.log("✓ Successfully migrated profile_photo column to TEXT");
       } catch (error) {
-        console.error('Error migrating profile_photo column:', error);
-        console.log('⚠ Warning: Could not migrate profile_photo column. Please run migration_profile_photo_text.sql manually.');
+        console.error("Error migrating profile_photo column:", error);
+        console.log(
+          "⚠ Warning: Could not migrate profile_photo column. Please run migration_profile_photo_text.sql manually."
+        );
       }
-    } else if (currentType === 'text') {
-      console.log('✓ profile_photo column is already TEXT type');
+    } else if (currentType === "text") {
+      console.log("✓ profile_photo column is already TEXT type");
     } else {
-      console.log(`⚠ profile_photo column has unexpected type: ${currentType}. Consider migrating to TEXT.`);
+      console.log(
+        `⚠ profile_photo column has unexpected type: ${currentType}. Consider migrating to TEXT.`
+      );
     }
   } catch (error) {
-    console.error('Error checking profile_photo column:', error);
+    console.error("Error checking profile_photo column:", error);
     // Don't throw, just log - the server can still start
-    console.log('⚠ Warning: Could not check profile_photo column. Please run migration_profile_photo_text.sql manually.');
+    console.log(
+      "⚠ Warning: Could not check profile_photo column. Please run migration_profile_photo_text.sql manually."
+    );
   }
 };
 
@@ -595,7 +694,7 @@ const ensureBlogFeaturedImageColumn = async () => {
     `);
 
     if (columnCheck.rows.length === 0) {
-      console.log('⚠ featured_image column not found in blog_posts table');
+      console.log("⚠ featured_image column not found in blog_posts table");
       return;
     }
 
@@ -603,26 +702,39 @@ const ensureBlogFeaturedImageColumn = async () => {
     const maxLength = columnCheck.rows[0].character_maximum_length;
 
     // If it's VARCHAR with a limit (like VARCHAR(500)), change it to TEXT
-    if (currentType === 'character varying' && maxLength !== null) {
-      console.log(`⚠ Migrating blog_posts.featured_image column from VARCHAR(${maxLength}) to TEXT...`);
+    if (currentType === "character varying" && maxLength !== null) {
+      console.log(
+        `⚠ Migrating blog_posts.featured_image column from VARCHAR(${maxLength}) to TEXT...`
+      );
       try {
         await query(`
           ALTER TABLE blog_posts 
           ALTER COLUMN featured_image TYPE TEXT
         `);
-        console.log('✓ Successfully migrated blog_posts.featured_image column to TEXT');
+        console.log(
+          "✓ Successfully migrated blog_posts.featured_image column to TEXT"
+        );
       } catch (error) {
-        console.error('Error migrating blog_posts.featured_image column:', error);
-        console.log('⚠ Warning: Could not migrate blog_posts.featured_image column. Please run migration manually.');
+        console.error(
+          "Error migrating blog_posts.featured_image column:",
+          error
+        );
+        console.log(
+          "⚠ Warning: Could not migrate blog_posts.featured_image column. Please run migration manually."
+        );
       }
-    } else if (currentType === 'text') {
-      console.log('✓ blog_posts.featured_image column is already TEXT type');
+    } else if (currentType === "text") {
+      console.log("✓ blog_posts.featured_image column is already TEXT type");
     } else {
-      console.log(`⚠ blog_posts.featured_image column has unexpected type: ${currentType}. Consider migrating to TEXT.`);
+      console.log(
+        `⚠ blog_posts.featured_image column has unexpected type: ${currentType}. Consider migrating to TEXT.`
+      );
     }
   } catch (error) {
-    console.error('Error checking blog_posts.featured_image column:', error);
-    console.log('⚠ Warning: Could not check blog_posts.featured_image column type. Continuing...');
+    console.error("Error checking blog_posts.featured_image column:", error);
+    console.log(
+      "⚠ Warning: Could not check blog_posts.featured_image column type. Continuing..."
+    );
   }
 };
 
@@ -652,7 +764,7 @@ const ensureProductImageUrlColumn = async () => {
     `);
 
     if (columnCheck.rows.length === 0) {
-      console.log('⚠ image_url column not found in products table');
+      console.log("⚠ image_url column not found in products table");
       return;
     }
 
@@ -660,26 +772,36 @@ const ensureProductImageUrlColumn = async () => {
     const maxLength = columnCheck.rows[0].character_maximum_length;
 
     // If it's VARCHAR with a limit (like VARCHAR(500)), change it to TEXT
-    if (currentType === 'character varying' && maxLength !== null) {
-      console.log(`⚠ Migrating products.image_url column from VARCHAR(${maxLength}) to TEXT...`);
+    if (currentType === "character varying" && maxLength !== null) {
+      console.log(
+        `⚠ Migrating products.image_url column from VARCHAR(${maxLength}) to TEXT...`
+      );
       try {
         await query(`
           ALTER TABLE products 
           ALTER COLUMN image_url TYPE TEXT
         `);
-        console.log('✓ Successfully migrated products.image_url column to TEXT');
+        console.log(
+          "✓ Successfully migrated products.image_url column to TEXT"
+        );
       } catch (error) {
-        console.error('Error migrating products.image_url column:', error);
-        console.log('⚠ Warning: Could not migrate products.image_url column. Please run migration manually.');
+        console.error("Error migrating products.image_url column:", error);
+        console.log(
+          "⚠ Warning: Could not migrate products.image_url column. Please run migration manually."
+        );
       }
-    } else if (currentType === 'text') {
-      console.log('✓ products.image_url column is already TEXT type');
+    } else if (currentType === "text") {
+      console.log("✓ products.image_url column is already TEXT type");
     } else {
-      console.log(`⚠ products.image_url column has unexpected type: ${currentType}. Consider migrating to TEXT.`);
+      console.log(
+        `⚠ products.image_url column has unexpected type: ${currentType}. Consider migrating to TEXT.`
+      );
     }
   } catch (error) {
-    console.error('Error checking products.image_url column:', error);
-    console.log('⚠ Warning: Could not check products.image_url column type. Continuing...');
+    console.error("Error checking products.image_url column:", error);
+    console.log(
+      "⚠ Warning: Could not check products.image_url column type. Continuing..."
+    );
   }
 };
 
@@ -696,7 +818,7 @@ const ensureLoyaltyPointsHistoryTable = async () => {
     `);
 
     if (!tableCheck.rows[0].exists) {
-      console.log('⚠ Creating loyalty_points_history table...');
+      console.log("⚠ Creating loyalty_points_history table...");
       await query(`
         CREATE TABLE loyalty_points_history (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -708,15 +830,21 @@ const ensureLoyaltyPointsHistoryTable = async () => {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      await query(`CREATE INDEX IF NOT EXISTS idx_loyalty_points_history_user_id ON loyalty_points_history(user_id)`);
-      await query(`CREATE INDEX IF NOT EXISTS idx_loyalty_points_history_booking_id ON loyalty_points_history(booking_id)`);
-      console.log('✓ Successfully created loyalty_points_history table');
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_loyalty_points_history_user_id ON loyalty_points_history(user_id)`
+      );
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_loyalty_points_history_booking_id ON loyalty_points_history(booking_id)`
+      );
+      console.log("✓ Successfully created loyalty_points_history table");
     } else {
-      console.log('✓ loyalty_points_history table already exists');
+      console.log("✓ loyalty_points_history table already exists");
     }
   } catch (error) {
-    console.error('Error creating loyalty_points_history table:', error);
-    console.log('⚠ Warning: Could not create loyalty_points_history table. Please run migration manually.');
+    console.error("Error creating loyalty_points_history table:", error);
+    console.log(
+      "⚠ Warning: Could not create loyalty_points_history table. Please run migration manually."
+    );
   }
 };
 
@@ -745,19 +873,23 @@ const ensureBookingsSlotIdColumn = async () => {
     `);
 
     if (!columnCheck.rows[0].exists) {
-      console.log('⚠ Adding slot_id column to bookings table...');
+      console.log("⚠ Adding slot_id column to bookings table...");
       await query(`
         ALTER TABLE bookings 
         ADD COLUMN slot_id UUID REFERENCES worker_slots(id) ON DELETE SET NULL
       `);
-      await query(`CREATE INDEX IF NOT EXISTS idx_bookings_slot_id ON bookings(slot_id)`);
-      console.log('✓ Successfully added slot_id column to bookings table');
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_bookings_slot_id ON bookings(slot_id)`
+      );
+      console.log("✓ Successfully added slot_id column to bookings table");
     } else {
-      console.log('✓ bookings.slot_id column already exists');
+      console.log("✓ bookings.slot_id column already exists");
     }
   } catch (error) {
-    console.error('Error adding slot_id column to bookings:', error);
-    console.log('⚠ Warning: Could not add slot_id column. Please run migration manually.');
+    console.error("Error adding slot_id column to bookings:", error);
+    console.log(
+      "⚠ Warning: Could not add slot_id column. Please run migration manually."
+    );
   }
 };
 
@@ -773,7 +905,7 @@ const ensureWorkerSlotsTable = async () => {
     `);
 
     if (!tableCheck.rows[0].exists) {
-      console.log('⚠ Creating worker_slots table...');
+      console.log("⚠ Creating worker_slots table...");
       await query(`
         CREATE TABLE worker_slots (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -787,17 +919,27 @@ const ensureWorkerSlotsTable = async () => {
           UNIQUE(worker_id, slot_date, start_time)
         )
       `);
-      await query(`CREATE INDEX IF NOT EXISTS idx_worker_slots_worker_id ON worker_slots(worker_id)`);
-      await query(`CREATE INDEX IF NOT EXISTS idx_worker_slots_date ON worker_slots(slot_date)`);
-      await query(`CREATE INDEX IF NOT EXISTS idx_worker_slots_status ON worker_slots(status)`);
-      await query(`CREATE INDEX IF NOT EXISTS idx_worker_slots_worker_date_status ON worker_slots(worker_id, slot_date, status)`);
-      console.log('✓ Successfully created worker_slots table');
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_worker_slots_worker_id ON worker_slots(worker_id)`
+      );
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_worker_slots_date ON worker_slots(slot_date)`
+      );
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_worker_slots_status ON worker_slots(status)`
+      );
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_worker_slots_worker_date_status ON worker_slots(worker_id, slot_date, status)`
+      );
+      console.log("✓ Successfully created worker_slots table");
     } else {
-      console.log('✓ worker_slots table already exists');
+      console.log("✓ worker_slots table already exists");
     }
   } catch (error) {
-    console.error('Error creating worker_slots table:', error);
-    console.log('⚠ Warning: Could not create worker_slots table. Please run migration manually.');
+    console.error("Error creating worker_slots table:", error);
+    console.log(
+      "⚠ Warning: Could not create worker_slots table. Please run migration manually."
+    );
   }
 };
 
@@ -814,48 +956,50 @@ const initializeTables = async () => {
     `);
 
     if (!result.rows[0].exists) {
-      console.log('⚠ Database tables not found. Please run init.sql script first.');
-      console.log('Instructions:');
-      console.log('1. Open pgAdmin 4');
-      console.log('2. Right-click on your database > Query Tool');
-      console.log('3. Copy and paste the contents of database/init.sql');
-      console.log('4. Execute the script (F5)');
-      console.log('5. Then run database/seed.sql for initial data');
+      console.log(
+        "⚠ Database tables not found. Please run init.sql script first."
+      );
+      console.log("Instructions:");
+      console.log("1. Open pgAdmin 4");
+      console.log("2. Right-click on your database > Query Tool");
+      console.log("3. Copy and paste the contents of database/init.sql");
+      console.log("4. Execute the script (F5)");
+      console.log("5. Then run database/seed.sql for initial data");
       return false;
     }
 
-    console.log('✓ Database tables verified');
-    
+    console.log("✓ Database tables verified");
+
     // Ensure profile_photo column is TEXT type (supports long URLs/base64)
     await ensureProfilePhotoColumn();
-    
+
     // Ensure blog_posts featured_image column is TEXT type (supports long URLs/base64)
     await ensureBlogFeaturedImageColumn();
-    
+
     // Ensure products image_url column is TEXT type (supports long URLs/base64)
     await ensureProductImageUrlColumn();
-    
+
     // Ensure loyalty_points_history table exists
     await ensureLoyaltyPointsHistoryTable();
-    
+
     // Ensure NID verification tables exist
     await ensureNIDVerificationTables();
-    
+
     // Ensure bookings constraints are up to date (booking_type and status)
     await ensureBookingsConstraints();
-    
+
     // Ensure booking_images and worker_estimates tables exist (for instant call feature)
     await ensureInstantCallTables();
-    
+
     // Ensure worker_slots table exists (for slot-based booking)
     await ensureWorkerSlotsTable();
-    
+
     // Ensure bookings table has slot_id column
     await ensureBookingsSlotIdColumn();
-    
+
     return true;
   } catch (error) {
-    console.error('Error initializing database:', error);
+    console.error("Error initializing database:", error);
     return false;
   }
 };
@@ -864,12 +1008,12 @@ const initializeTables = async () => {
 const transaction = async (callback) => {
   const client = await getClient();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
     const result = await callback(client);
-    await client.query('COMMIT');
+    await client.query("COMMIT");
     return result;
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw error;
   } finally {
     client.release();
@@ -881,5 +1025,5 @@ module.exports = {
   query,
   getClient,
   transaction,
-  initializeTables
+  initializeTables,
 };
